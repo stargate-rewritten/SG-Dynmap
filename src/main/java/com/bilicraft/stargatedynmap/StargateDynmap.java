@@ -1,9 +1,12 @@
 package com.bilicraft.stargatedynmap;
 
-import net.TheDgtl.Stargate.Portal;
-import net.TheDgtl.Stargate.Stargate;
+import net.TheDgtl.Stargate.network.portal.Portal;
+import net.TheDgtl.Stargate.network.portal.RealPortal;
+import net.TheDgtl.Stargate.api.StargateAPI;
 import net.TheDgtl.Stargate.event.StargateCreateEvent;
 import net.TheDgtl.Stargate.event.StargateDestroyEvent;
+import net.TheDgtl.Stargate.network.Network;
+
 import org.apache.commons.lang.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -18,14 +21,16 @@ import org.dynmap.markers.MarkerIcon;
 import org.dynmap.markers.MarkerSet;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Feel free to change the package name and project license.
  */
 public final class StargateDynmap extends JavaPlugin implements Listener {
     DynmapAPI dynmapAPI;
-    Stargate stargate;
+    StargateAPI stargateAPI;
     MarkerSet markerSet;
     MarkerIcon portalIcon;
 
@@ -34,7 +39,7 @@ public final class StargateDynmap extends JavaPlugin implements Listener {
         // Plugin startup logic
         Bukkit.getPluginManager().registerEvents(this,this);
         dynmapAPI = (DynmapAPI) Bukkit.getPluginManager().getPlugin("dynmap");
-        stargate = (Stargate) Bukkit.getPluginManager().getPlugin("Stargate");
+        stargateAPI = (StargateAPI) Bukkit.getPluginManager().getPlugin("stargate");
         markerSet = dynmapAPI.getMarkerAPI().createMarkerSet("stargate","Stargate",null,false);
         portalIcon = dynmapAPI.getMarkerAPI().getMarkerIcon("portal");
         updatePortals();
@@ -60,21 +65,17 @@ public final class StargateDynmap extends JavaPlugin implements Listener {
         }
     }
 
-    public List<Portal> getAllPortals(){
-        // Stargate API is really terrible
-        Field field = null;
-        try {
-            field = Portal.class.getDeclaredField("allPortals");
-            field.setAccessible(true);
-            //noinspection unchecked
-            return (List<Portal>)field.get(null);
-
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            e.printStackTrace();
-            return null;
+    public List<Portal> getAllPortals() {
+        List<Portal> portals = new ArrayList<>();
+        Map<String, Network> networks = stargateAPI.getRegistry().getNetworkMap();
+        for(Network network : networks.values()) {
+            for(Portal portal : network.getAllPortals()) {
+                portals.add(portal);
+            }
         }
+        return portals;
     }
-
+    
     public void updatePortals(){
         List<Portal> portals = getAllPortals();
         if(portals == null){
@@ -92,17 +93,21 @@ public final class StargateDynmap extends JavaPlugin implements Listener {
                 }
             } catch (NoSuchFieldException | IllegalAccessException ignored) {
             }
-
-            Location location = portal.getEntrances()[0].getLocation();
+            Location location = null;
+            if(!(portal instanceof RealPortal)) {
+                return;
+            }
+            location = ((RealPortal)portal).getExit();
             String destinationName = portal.getDestinationName();
+            // TODO: I18N
             if(StringUtils.isEmpty(destinationName)){
                 destinationName = "<Non-directional Stargate>";
             }
-            Marker marker = markerSet.createMarker(null,portal.getName(),portal.getWorld().getName(),location.getX(),location.getY(),location.getZ(), portalIcon,false);
+            Marker marker = markerSet.createMarker(null,portal.getName(),((RealPortal)portal).getExit().getWorld().getName(),location.getX(),location.getY(),location.getZ(), portalIcon,false);
             String desc = "Name: " + portal.getName() + "<br />" +
                     "Network: " + portal.getNetwork() + "<br />" +
                     "Destination: " + destinationName + "<br />" +
-                    "Owner: " + portal.getOwnerName() + "<br />";
+                    "Owner: " + Bukkit.getOfflinePlayer(portal.getOwnerUUID()).getName() + "<br />";
             marker.setDescription(desc);
             marker.setLabel(portal.getName(),true);
             marker.setMarkerIcon(portalIcon);

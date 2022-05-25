@@ -1,7 +1,7 @@
-name: StargateDynmap
+name: SG-Dynmap
 version: ${project.version}
 main: com.bilicraft.stargatedynmap.StargateDynmap
-api-version: 1.17
+api-version: 1.13
 description: StargameDynmap plugin
 depend:
   - dynmap
